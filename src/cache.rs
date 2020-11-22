@@ -4,17 +4,16 @@ use tokio::time::Instant;
 
 pub struct Cache<T> {
     data: HashMap<String, CacheEntry<T>>,
-    max_size: usize
+    max_size: usize,
 }
 
 pub struct CacheEntry<T> {
-    data : T,
-    created: Instant
+    data: T,
+    created: Instant,
 }
 
-impl <T> CacheEntry<T> {
-
-    pub fn new(data : T) -> CacheEntry<T> {
+impl<T> CacheEntry<T> {
+    pub fn new(data: T) -> CacheEntry<T> {
         CacheEntry {
             data,
             created: Instant::now(),
@@ -30,16 +29,15 @@ impl <T> CacheEntry<T> {
     }
 }
 
-
-impl <T> Cache <T> {
+impl<T> Cache<T> {
     pub fn new(max_size: usize) -> Self {
         Cache {
             data: HashMap::with_capacity(max_size),
-            max_size
+            max_size,
         }
     }
 
-    pub fn insert(&mut self, key : String, data: T) {
+    pub fn insert(&mut self, key: String, data: T) {
         let entry = CacheEntry::new(data);
         self.data.insert(key, entry);
     }
@@ -53,7 +51,7 @@ impl <T> Cache <T> {
     }
 }
 
-impl <T> Default for Cache<T> {
+impl<T> Default for Cache<T> {
     fn default() -> Self {
         Cache::new(100)
     }

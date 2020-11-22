@@ -43,9 +43,7 @@ fn post_config(json: Json<Config>, state: State<RwLock<ConfigCache>>) -> Result<
 async fn main() {
     let cache: ConfigCache = cache::Cache::default();
 
-    tokio::spawn(async move {
-
-    });
+    tokio::spawn(async move {});
 
     rocket::ignite()
         .mount("/", routes![get_config, post_config])
