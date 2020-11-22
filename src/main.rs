@@ -15,28 +15,37 @@ use anyhow::Result;
 mod api;
 mod cache;
 
+pub type ConfigCache = Cache<Config>;
+
 #[get("/config/<name>")]
-fn get_config(name: String, state: State<RwLock<Cache>>) -> Option<Json<Config>> {
+fn get_config(name: String, state: State<RwLock<ConfigCache>>) -> Option<Json<Config>> {
     match state.inner().read() {
         Ok(guard) => guard.get(&name).map(|config| Json(config.clone())),
         Err(_) => None,
     }
 }
 
-#[post("/config", format = "json", data = "<config>")]
-fn post_config(config: Json<Config>, state: State<RwLock<Cache>>) -> Result<Accepted<String>> {
+#[post("/config", format = "json", data = "<json>")]
+fn post_config(json: Json<Config>, state: State<RwLock<ConfigCache>>) -> Result<Accepted<String>> {
     state
         .inner()
         .write()
         .and_then(|mut guard| {
-            guard.insert(config.into_inner());
+            let config = json.into_inner();
+
+            guard.insert(config.get_name().to_owned(), config);
             Ok(Accepted(Some("Success".to_owned())))
         })
         .map_err(|_| anyhow::anyhow!("Internal Server Error"))
 }
 
-fn main() {
-    let cache = cache::Cache::default();
+#[tokio::main]
+async fn main() {
+    let cache: ConfigCache = cache::Cache::default();
+
+    tokio::spawn(async move {
+
+    });
 
     rocket::ignite()
         .mount("/", routes![get_config, post_config])
