@@ -2,10 +2,10 @@
 #[macro_use]
 extern crate rocket;
 
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use api::Config;
-use cache::Cache;
+use cache::{Cache, CacheMutation};
 use rocket::response::status::Accepted;
 use rocket::State;
 use rocket_contrib::json::Json;
@@ -15,10 +15,10 @@ use anyhow::Result;
 mod api;
 mod cache;
 
-pub type ConfigCache = Cache<Config>;
+pub type ApplicationCache = Arc<RwLock<Cache<Config>>>;
 
 #[get("/config/<name>")]
-fn get_config(name: String, state: State<RwLock<ConfigCache>>) -> Option<Json<Config>> {
+fn get_config(name: String, state: State<ApplicationCache>) -> Option<Json<Config>> {
     match state.inner().read() {
         Ok(guard) => guard.get(&name).map(|config| Json(config.clone())),
         Err(_) => None,
@@ -26,7 +26,7 @@ fn get_config(name: String, state: State<RwLock<ConfigCache>>) -> Option<Json<Co
 }
 
 #[post("/config", format = "json", data = "<json>")]
-fn post_config(json: Json<Config>, state: State<RwLock<ConfigCache>>) -> Result<Accepted<String>> {
+fn post_config(json: Json<Config>, state: State<ApplicationCache>) -> Result<Accepted<String>> {
     state
         .inner()
         .write()
@@ -41,12 +41,25 @@ fn post_config(json: Json<Config>, state: State<RwLock<ConfigCache>>) -> Result<
 
 #[tokio::main]
 async fn main() {
-    let cache: ConfigCache = cache::Cache::default();
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<CacheMutation>(10);
 
-    tokio::spawn(async move {});
+    let cache: Cache<Config> = cache::Cache::new(100, tx);
+    let state = Arc::new(RwLock::new(cache));
+    let manager = state.clone();
+
+    tokio::spawn(async move {
+        while let Some(operation) = rx.recv().await {
+            match operation {
+                CacheMutation::Drop(name) => match manager.write() {
+                    Ok(mut lock) => lock.delete(name),
+                    Err(e) => println!("Failed to lock cache {:}", e),
+                },
+            }
+        }
+    });
 
     rocket::ignite()
         .mount("/", routes![get_config, post_config])
-        .manage(RwLock::new(cache))
+        .manage(state)
         .launch();
 }
